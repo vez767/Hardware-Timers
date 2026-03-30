@@ -24,23 +24,59 @@ int main(void)
 {
 
 	volatile uint32_t *pRCC_APB1ENR = (volatile uint32_t *)0x40023840;
+	volatile uint32_t *pRCC_AHB1ENR = ( volatile uint32_t *)0x40023830;
 
+	*pRCC_APB1ENR |= (1U << 0); // TIM2EN
+	*pRCC_AHB1ENR |= (1U << 0) ; // GPIOA_PORT Enable
 
+	//GPIO
+	volatile uint32_t *pGPIOA_MODER = (volatile uint32_t *)0x40020000;
+	volatile uint32_t *pGPIOA_AFRL = (volatile uint32_t *)0x40020020;
+
+	*pGPIOA_MODER &= ~(3U << 0); // Clear bits[1:0]
+	*pGPIOA_MODER |= (2U << 0); // Alternate Function (AF)
+
+	*pGPIOA_AFRL &= ~(0xFU << 0); // Clear bits [3:0]
+	*pGPIOA_AFRL |=  (1U << 0); // AF1
+
+	// Time-base Generation
 	volatile uint32_t *pTIM2_PSC = (volatile uint32_t *)0x40000028;
 	volatile uint32_t *pTIM2_ARR = (volatile uint32_t *)0x4000002C;
 	volatile uint32_t *pTIM2_CR1 = (volatile uint32_t *)0x40000000;
 	volatile uint32_t *pTIM2_CNT = (volatile uint32_t *)0x40000024;
 
+	volatile uint32_t *pTIM2_EGR = (volatile uint32_t *)0x40000014;
 
-	*pRCC_APB1ENR |= (1U << 0); // TIM2EN
-
-	*pTIM2_PSC = 83U; // ftick
+	*pTIM2_PSC = 15U; // ftick
 	*pTIM2_ARR = 0xFFFFFFFFU; // Reload register
 
-	*pTIM2_CR1 |= (1 << 0); // Enable Counter
+	*pTIM2_EGR |= (1U << 0);// Enforces shadow pre-scaler
+
+	*pTIM2_CR1 |= (1U << 0); // Enable Counter
+
+	// Output Compare Channel
+	volatile uint32_t *pTIM2_CCMR1 = (volatile uint32_t *)0x40000018;
+	volatile uint32_t *pTIM2_CCER = (volatile uint32_t *)0x40000020;
+	volatile uint32_t *pTIM2_CCR1 = (volatile uint32_t *)0x40000034;
+
+	*pTIM2_CCMR1 &= ~(7U << 4); // Clear OCM1 bits[2:0]
+	*pTIM2_CCMR1 |=  (6U << 4); // PWM Mode 1
+
+	*pTIM2_CCER |= (1U << 0);// CC1E (Enable)
+
+	*pTIM2_CCR1 = 12U; // trigger
 
 
-	while(1){
-		current_time = *pTIM2_CNT; // Read the Counter
-	}
+	while(1)
+	    {
+	        current_time = *pTIM2_CNT; // (Optional: Just to watch it in the debugger)
+
+	        // --- FIRE THE TRIGGER ---
+	        // Teleport the runner back to the start. The hardware automatically
+	        // drives PA0 HIGH, and then snaps it LOW exactly 10 microseconds later.
+	        *pTIM2_CNT = 0U;
+
+	        // Wait 100 milliseconds before firing again so we don't spam the sensor
+	        for(int i = 0; i < 200000; i++);
+	    }
 }
