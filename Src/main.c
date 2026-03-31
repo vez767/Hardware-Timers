@@ -20,8 +20,11 @@
 
 volatile uint32_t current_time = 0;
 
+
 int main(void)
 {
+
+						/* TRIGGER LOGIC*/
 
 	volatile uint32_t *pRCC_APB1ENR = (volatile uint32_t *)0x40023840;
 	volatile uint32_t *pRCC_AHB1ENR = ( volatile uint32_t *)0x40023830;
@@ -33,7 +36,7 @@ int main(void)
 	volatile uint32_t *pGPIOA_MODER = (volatile uint32_t *)0x40020000;
 	volatile uint32_t *pGPIOA_AFRL = (volatile uint32_t *)0x40020020;
 
-	*pGPIOA_MODER &= ~(3U << 0); // Clear bits[1:0]
+	*pGPIOA_MODER &= ~(3U << 0); // Clear bits - MODER0[1:0]
 	*pGPIOA_MODER |= (2U << 0); // Alternate Function (AF)
 
 	*pGPIOA_AFRL &= ~(0xFU << 0); // Clear bits [3:0]
@@ -52,7 +55,6 @@ int main(void)
 
 	*pTIM2_EGR |= (1U << 0);// Enforces shadow pre-scaler
 
-	*pTIM2_CR1 |= (1U << 0); // Enable Counter
 
 	// Output Compare Channel
 	volatile uint32_t *pTIM2_CCMR1 = (volatile uint32_t *)0x40000018;
@@ -67,16 +69,52 @@ int main(void)
 	*pTIM2_CCR1 = 12U; // trigger
 
 
+						/* ECHO LOGIC*/
+
+
+	volatile uint32_t *pGPIOA_PUPDR = (volatile uint32_t *)0x4002000C;
+
+	*pGPIOA_MODER &= ~(3U << 2); // Clear bits - MODER1[1:0]
+	*pGPIOA_MODER |= (2U << 2); // Alternate Function (AF)
+
+	*pGPIOA_PUPDR &= ~(3U << 2); // Clear Pin 1 - PUPDR1[1:0]
+	*pGPIOA_PUPDR |= (2U << 2); // Pull-down
+
+	*pGPIOA_AFRL &= ~(0xFU << 4); // Clear bits [7:4]
+	*pGPIOA_AFRL |=  (1U << 4); // AF1
+
+	*pTIM2_CCMR1 &= ~(3U << 8); // Clear CC2S[1:0]
+	*pTIM2_CCMR1 |=  (1U << 8); // Map input to TIM2
+
+	*pTIM2_CCER &= ~((1U << 7) | (1U << 5)); // Clear bits 7 and 5 to 0 (Rising Edge)
+	*pTIM2_CCER |=  (1U << 4); // Flip CC2E register ON
+
+
+	volatile uint32_t *pTIM2_SR = (volatile uint32_t *)0x40000010;
+	volatile uint32_t *pTIM2_CCR2 = (volatile uint32_t *)0x40000038;
+
+
+
 	while(1)
-	    {
-	        current_time = *pTIM2_CNT; // (Optional: Just to watch it in the debugger)
+	{
 
-	        // --- FIRE THE TRIGGER ---
-	        // Teleport the runner back to the start. The hardware automatically
-	        // drives PA0 HIGH, and then snaps it LOW exactly 10 microseconds later.
-	        *pTIM2_CNT = 0U;
+	    *pTIM2_CNT = 0;              // Reset CNT to 0
+	    *pTIM2_SR &= ~(1U << 2);     // Clear the Capture Flag (CC2IF)
 
-	        // Wait 100 milliseconds before firing again so we don't spam the sensor
-	        for(int i = 0; i < 200000; i++);
-	    }
+
+	    *pTIM2_CR1 |= (1U << 0); // Enable Counter
+
+	    // The CPU freezes on this exact line until CC2IF (Bit 2) becomes 1
+	    while( !(*pTIM2_SR & (1U << 2)) );
+
+
+	    volatile uint32_t echo_time = *pTIM2_CCR2;
+
+
+	    *pTIM2_CR1 &= ~(1U << 0);    // Clear CEN bit to 0
+
+
+	    // An empty loop to 50 takes less than a microsecond.
+	    for(volatile uint32_t i = 0; i < 500000; i++);
+	}
 }
