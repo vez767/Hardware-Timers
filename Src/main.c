@@ -17,11 +17,12 @@
  */
 
 #include <stdint.h>
+#include <stdlib.h>
 
 volatile uint32_t rising_edge = 0;
 volatile uint32_t falling_edge = 0;
 volatile uint32_t pulse_width = 0;
-volatile uint32_t distance_cm = 0;
+volatile uint32_t raw_distance_cm = 0;
 volatile uint32_t filtered_distance = 0;
 
 
@@ -104,8 +105,10 @@ int main(void)
 	{
 
 		volatile uint32_t buffer_distance = 0;
+		volatile int32_t spike_proof_distance = 0;
+		volatile uint32_t mean_count = 0;
 
-		for (volatile uint8_t i = 0; i < 20; i++){
+		for (volatile uint8_t i = 0; i < 18; i++){
 
 	    *pTIM2_CNT = 0;
 	    *pTIM2_SR &= ~(1U << 2);
@@ -156,10 +159,16 @@ int main(void)
 
 	     */
 
-	    distance_cm = pulse_width / 58;
+	    raw_distance_cm = pulse_width / 58;
 
-	    buffer_distance += distance_cm;
+	    if(i == 0 || abs((int32_t)raw_distance_cm - (int32_t)spike_proof_distance )< 50){
 
+	    spike_proof_distance = raw_distance_cm;
+
+	    buffer_distance += raw_distance_cm;
+
+	    mean_count++;
+	    }
 
 
 
@@ -171,7 +180,10 @@ int main(void)
 	    for(volatile uint32_t j = 0; j < 50000; j++);
 		}
 
-		 filtered_distance = buffer_distance / 20;
+		// Crash Prevention Logic
+		if(mean_count > 0){
+		 filtered_distance = buffer_distance / mean_count;
+		}
 
 	}
 }
