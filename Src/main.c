@@ -22,6 +22,7 @@ volatile uint32_t rising_edge = 0;
 volatile uint32_t falling_edge = 0;
 volatile uint32_t pulse_width = 0;
 volatile uint32_t distance_cm = 0;
+volatile uint32_t filtered_distance = 0;
 
 
 int main(void)
@@ -102,6 +103,10 @@ int main(void)
 	while(1)
 	{
 
+		volatile uint32_t buffer_distance = 0;
+
+		for (volatile uint8_t i = 0; i < 20; i++){
+
 	    *pTIM2_CNT = 0;
 	    *pTIM2_SR &= ~(1U << 2);
 	    *pTIM2_CR1 |= (1U << 0); // Enable Counter
@@ -153,11 +158,20 @@ int main(void)
 
 	    distance_cm = pulse_width / 58;
 
+	    buffer_distance += distance_cm;
+
+
+
+
 
 	    *pTIM2_CCER &= ~(1U << 5);   // Clear Bit 5(CC2P) back to 0 (Reset to Rising Edge)
 	    *pTIM2_CR1 &= ~(1U << 0);    // Stop the Counter
 
 	    // Delay
-	    for(volatile uint32_t i = 0; i < 500000; i++);
+	    for(volatile uint32_t j = 0; j < 50000; j++);
+		}
+
+		 filtered_distance = buffer_distance / 20;
+
 	}
 }
