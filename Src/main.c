@@ -18,10 +18,10 @@
 
 #include <stdint.h>
 
-volatile uint32_t current_time = 0;
 volatile uint32_t rising_edge = 0;
 volatile uint32_t falling_edge = 0;
 volatile uint32_t pulse_width = 0;
+volatile uint32_t distance_cm = 0;
 
 
 int main(void)
@@ -123,6 +123,35 @@ int main(void)
 
 
 	    pulse_width = falling_edge - rising_edge;
+
+	    /* 					[DISTANCE LOGIC]
+
+	     Speed of Sound in air: 343m/s = 34300cm/s
+	     therefore, distance in cm = 34300(cm/s) * (0.5 * pulse_width(μs))
+
+	     SINCE OUR ftick WAS SCALED TO MICROSECONDS(μs);
+
+	     distance(cm) = 0.0343(cm/μs) * (0.5 * pulse_width(μs))
+
+	     HOWEVER THE STM-F USES INTEGER ARITHMETIC,
+	     THEREFORE WE WISH TO CALCULATE IN WHOLE NUMBERS
+	     TO OPTIMIZE MEMORY AND CLOCK CYCLES
+
+
+	     -> 0.0343 * 0.5 = 0.01715
+
+	     SINCE, pulse_width * 0.01715 = pulse width / ((0.0175)^-1)
+
+	     AND
+	     ((0.0175)^-1) = 58.30903...
+	     -> ((0.0175)^-1) ≈  58 (1 s.f)
+
+	     THEREFORE THE FORMULA...
+	     distance(cm) = pulse_width / 58
+
+	     */
+
+	    distance_cm = pulse_width / 58;
 
 
 	    *pTIM2_CCER &= ~(1U << 5);   // Clear Bit 5(CC2P) back to 0 (Reset to Rising Edge)
