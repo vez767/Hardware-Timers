@@ -19,6 +19,9 @@
 #include <stdint.h>
 
 volatile uint32_t current_time = 0;
+volatile uint32_t rising_edge = 0;
+volatile uint32_t falling_edge = 0;
+volatile uint32_t pulse_width = 0;
 
 
 int main(void)
@@ -95,26 +98,37 @@ int main(void)
 
 
 
+
 	while(1)
 	{
 
-	    *pTIM2_CNT = 0;              // Reset CNT to 0
-	    *pTIM2_SR &= ~(1U << 2);     // Clear the Capture Flag (CC2IF)
-
-
+	    *pTIM2_CNT = 0;
+	    *pTIM2_SR &= ~(1U << 2);
 	    *pTIM2_CR1 |= (1U << 0); // Enable Counter
 
-	    // The CPU freezes on this exact line until CC2IF (Bit 2) becomes 1
+
+	    // CAPTURE RISING EDGE
 	    while( !(*pTIM2_SR & (1U << 2)) );
+	    rising_edge = *pTIM2_CCR2;
 
 
-	    volatile uint32_t echo_time = *pTIM2_CCR2;
+	    // REPROGRAM: THE SWITCH
+	    *pTIM2_CCER |= (1U << 5);    // Write 1 to CC2P (Falling Edge)
+	    *pTIM2_SR &= ~(1U << 2);     // Clear Status Flag
 
 
-	    *pTIM2_CR1 &= ~(1U << 0);    // Clear CEN bit to 0
+	    // CAPTURE FALLING EDGE
+	    while( !(*pTIM2_SR & (1U << 2)) );
+	    falling_edge = *pTIM2_CCR2;
 
 
-	    // An empty loop to 50 takes less than a microsecond.
+	    pulse_width = falling_edge - rising_edge;
+
+
+	    *pTIM2_CCER &= ~(1U << 5);   // Clear Bit 5(CC2P) back to 0 (Reset to Rising Edge)
+	    *pTIM2_CR1 &= ~(1U << 0);    // Stop the Counter
+
+	    // Delay
 	    for(volatile uint32_t i = 0; i < 500000; i++);
 	}
 }
