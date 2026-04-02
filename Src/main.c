@@ -24,10 +24,11 @@ volatile uint32_t falling_edge = 0;
 volatile uint32_t pulse_width = 0;
 volatile uint32_t raw_distance_cm = 0;
 volatile uint32_t filtered_distance = 0;
+int8_t window_limit = 100;
 uint8_t sensor_status;
 int8_t sensor_state_switch;
 uint32_t trigger_timeout;
-volatile uint8_t clean_envelope;
+volatile uint32_t clean_envelope;
 
 int main(void)
 {
@@ -108,9 +109,8 @@ int main(void)
 	{
 
 		volatile uint32_t buffer_distance = 0;
-		volatile uint8_t hardware_fault_count = 0;
-		volatile int32_t spike_proof_distance = 0;
 		volatile uint32_t mean_count = 0;
+		int32_t last_contact = 0;
 
 		for (volatile uint8_t i = 0; i < 18; i++){
 
@@ -122,7 +122,7 @@ int main(void)
 	    								// CAPTURE RISING EDGE
 
 	    trigger_timeout = 0;
-	    sensor_state_switch = 1;
+	    sensor_state_switch = 1; // Sensor State Reset switch in case of failure
 
 
 	    // Broken Circuit Logic
@@ -131,7 +131,6 @@ int main(void)
 	        trigger_timeout++;
 	         if (trigger_timeout > 50000)
 	         {
-	        	 hardware_fault_count++;
 	        	 sensor_state_switch = 0;
 	         	 break; // Break the infinite while loop
 	         }
@@ -141,6 +140,7 @@ int main(void)
 	          if (sensor_state_switch == 0)
 	          {
 	        	  sensor_status = 0;
+	        	  clean_envelope = 0xA98AC7;
 	        	  *pTIM2_CR1 &= ~(1U << 0);
 	        	  for(volatile uint32_t j = 0; j < 50000; j++);
 	               continue;
@@ -180,7 +180,7 @@ int main(void)
 	    	 }
 
 	    falling_edge = *pTIM2_CCR2;
-	    clean_envelope = 0;
+
 
 	    pulse_width = falling_edge - rising_edge;
 
@@ -213,18 +213,22 @@ int main(void)
 
 	    raw_distance_cm = pulse_width / 58;
 
-	    if(raw_distance_cm < 400){
+	    //Window limit
+	    if(raw_distance_cm < window_limit){
 
-			if(mean_count == 0 || abs((int32_t)raw_distance_cm - (int32_t)spike_proof_distance )< 50)
+			if(mean_count == 0 || abs((int32_t)raw_distance_cm - (int32_t)last_contact )< 50)
 			{
 
-			spike_proof_distance = raw_distance_cm;
-
+			clean_envelope = 0;
+			last_contact = raw_distance_cm; // Update the tracking center-point
 			buffer_distance += raw_distance_cm;
-
 			mean_count++;
 
 			}
+	    }
+	    else
+	    {
+	    	clean_envelope = 1;
 	    }
 
 
@@ -240,6 +244,9 @@ int main(void)
 		// Crash Prevention Logic
 		if(mean_count > 0){
 		 filtered_distance = buffer_distance / mean_count;
-		}
+		} else {
+		            // SAFE STATE FALLBACK
+		            filtered_distance = 0xA98AC7;
+		        }
 	}
 }
