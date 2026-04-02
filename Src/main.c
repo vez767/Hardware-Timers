@@ -24,7 +24,10 @@ volatile uint32_t falling_edge = 0;
 volatile uint32_t pulse_width = 0;
 volatile uint32_t raw_distance_cm = 0;
 volatile uint32_t filtered_distance = 0;
-
+uint8_t sensor_status;
+int8_t sensor_state_switch;
+uint32_t trigger_timeout;
+volatile uint8_t clean_envelope;
 
 int main(void)
 {
@@ -105,6 +108,7 @@ int main(void)
 	{
 
 		volatile uint32_t buffer_distance = 0;
+		volatile uint8_t hardware_fault_count = 0;
 		volatile int32_t spike_proof_distance = 0;
 		volatile uint32_t mean_count = 0;
 
@@ -115,20 +119,68 @@ int main(void)
 	    *pTIM2_CR1 |= (1U << 0); // Enable Counter
 
 
-	    // CAPTURE RISING EDGE
-	    while( !(*pTIM2_SR & (1U << 2)) );
-	    rising_edge = *pTIM2_CCR2;
+	    								// CAPTURE RISING EDGE
 
+	    trigger_timeout = 0;
+	    sensor_state_switch = 1;
+
+
+	    // Broken Circuit Logic
+	    while( !(*pTIM2_SR & (1U << 2)) )
+	    {
+	        trigger_timeout++;
+	         if (trigger_timeout > 50000)
+	         {
+	        	 hardware_fault_count++;
+	        	 sensor_state_switch = 0;
+	         	 break; // Break the infinite while loop
+	         }
+	     }
+
+	        // If wire is cut, stop the engine, pause, and skip to the next ping
+	          if (sensor_state_switch == 0)
+	          {
+	        	  sensor_status = 0;
+	        	  *pTIM2_CR1 &= ~(1U << 0);
+	        	  for(volatile uint32_t j = 0; j < 50000; j++);
+	               continue;
+	           }
+
+	    sensor_status = 1;
+	    rising_edge = *pTIM2_CCR2;
 
 	    // REPROGRAM: THE SWITCH
 	    *pTIM2_CCER |= (1U << 5);    // Write 1 to CC2P (Falling Edge)
 	    *pTIM2_SR &= ~(1U << 2);     // Clear Status Flag
 
 
-	    // CAPTURE FALLING EDGE
-	    while( !(*pTIM2_SR & (1U << 2)) );
-	    falling_edge = *pTIM2_CCR2;
+	    				// CAPTURE FALLING EDGE
 
+	    // Echo pin Timeout Logic
+	    uint32_t echo_timeout = 0;
+	    uint8_t echo_state = 1;
+	    while( !(*pTIM2_SR & (1U << 2)) )
+	    {
+	    	echo_timeout++;
+	    	if(echo_timeout > 50000)
+	    	{
+	    		echo_state = 0;
+	    		break;
+	    	}
+	    }
+
+
+	    if(echo_state == 0)
+	    	 {
+	    	  	  clean_envelope = 1;
+	    	  	  *pTIM2_CCER &= ~(1U << 5);
+	    	  	  *pTIM2_CR1 &= ~(1U << 0);
+	    	  	  for(volatile uint32_t j = 0; j < 50000; j++);
+	    	  	  continue;
+	    	 }
+
+	    falling_edge = *pTIM2_CCR2;
+	    clean_envelope = 0;
 
 	    pulse_width = falling_edge - rising_edge;
 
@@ -189,6 +241,5 @@ int main(void)
 		if(mean_count > 0){
 		 filtered_distance = buffer_distance / mean_count;
 		}
-
 	}
 }
