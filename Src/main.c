@@ -161,13 +161,18 @@ int main(void)
 
 	    raw_distance_cm = pulse_width / 58;
 
-	    if(i == 0 || abs((int32_t)raw_distance_cm - (int32_t)spike_proof_distance )< 50){
+	    if(raw_distance_cm < 400){
 
-	    spike_proof_distance = raw_distance_cm;
+			if(mean_count == 0 || abs((int32_t)raw_distance_cm - (int32_t)spike_proof_distance )< 50)
+			{
 
-	    buffer_distance += raw_distance_cm;
+			spike_proof_distance = raw_distance_cm;
 
-	    mean_count++;
+			buffer_distance += raw_distance_cm;
+
+			mean_count++;
+
+			}
 	    }
 
 
