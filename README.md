@@ -22,28 +22,35 @@ Moving beyond basic static distance measurement, this driver incorporates an act
 
 ## Hardware-in-the-Loop (HIL) Demonstrations
 
-> `[Insert Master HIL Demonstration Video Here]`
+
+
+> https://github.com/user-attachments/assets/dfabf98f-dbc6-4247-bb96-9f3e8f0d15e7
+
+
 
 The following test cases break down the specific system states demonstrated in the hardware testing. They track the dynamic calculation of pulse widths alongside the real-time evaluation of the safe-state variables (`raw_distance_cm`, `filtered_distance`, `sensor_status`, `trigger_timeout`, and `clean_envelope`).
 
 ### Case 1: System Idle (No Target in Range)
-**Status:** Nominal
+##### **Status:** Nominal
 The sensor is functioning normally (`sensor_status = 1`), but no object is within the defined window limit. The `clean_envelope` flag remains high (`1`), and the `filtered_distance` correctly outputs the invalidation code (`1111111`) to indicate no valid target is present.
-> `[Insert Image Here]`
+> <img width="1920" height="1080" alt="Screenshot 2026-04-04 143721" src="https://github.com/user-attachments/assets/744d4ced-0f53-4fd9-8143-a1ab66c26f43" />
+
 
 ### Case 2: Target Acquisition & Tracking
-**Status:** Active Lock
+##### **Status:** Active Lock
 An object enters the window limit. The `clean_envelope` flag drops to `0` indicating an active lock, and the `filtered_distance` dynamically updates with the true distance of the target in real-time.
-> `[Insert Image Here]`
+> <img width="1920" height="1080" alt="Screenshot 2026-04-04 143656" src="https://github.com/user-attachments/assets/992c80af-487d-4264-9015-0f401ef19f9b" />
+
 
 ### Case 3: Target Lost / Out of Range
-**Status:** Nominal Recovery
+##### **Status:** Nominal Recovery
 The tracked object moves out of the physical range limit. The system safely drops the lock, returning `clean_envelope` to `1` and actively invalidating the stale tracking data by resetting `filtered_distance` back to `1111111`.
 
-### Case 4: Hardware Failure (Severed Echo Wire)
-**Status:** Safe State Triggered
-The Echo wire is physically unplugged while the system is running. The hardware capture freezes, but the `trigger_timeout` variable dynamically counts up to the `50000` fail-safe limit. The system successfully intercepts the fault, sets `sensor_status` to `0`, and outputs the `1111111` invalidation code. Crucially, the polling timer does not halt; it continuously attempts new trigger cycles, actively re-testing the connection to check if the hardware has returned.
-> `[Insert Image Here]`
+### Case 4: Hardware Failure (Severed Echo Wire) or Faulty Connection 
+##### **Status:** Safe State Triggered
+In two seperate instances the circuit is broken: A faulty connection where connections for Port A0 and A1 are mixed up and a scenerio where Echo wire is physically unplugged while the system is running. The hardware capture freezes, but the `trigger_timeout` variable dynamically counts up to the `50000` fail-safe limit. The system successfully intercepts the fault, sets `sensor_status` to `0`, and outputs the `1111111` invalidation code. Crucially, the polling timer does not halt; it continuously attempts new trigger cycles, actively re-testing the connection to check if the hardware has returned.
+> <img width="1919" height="1079" alt="Screenshot 2026-04-04 143535" src="https://github.com/user-attachments/assets/608e1446-9c7c-41ba-977f-f2a365a6d1d3" />
+
 
 ### Case 5: Hardware Reconnection & Recovery
 **Status:** System Restored
@@ -67,14 +74,19 @@ This driver is mapped to the standard GPIO Port A of the STM32F microcontroller.
 
 Bypassing the HAL requires manual configuration of the MCU's clock tree. While the STM32F family advertises maximum core clocks (e.g., 84MHz), the silicon boots by default onto the **16MHz High-Speed Internal (HSI) oscillator**.
 
-* **Prescaler Calibration:** An initial assumption of an 84MHz system clock led to an incorrect TIM2 prescaler calculation, resulting in a massive 625ms duty cycle instead of the required microsecond resolution. This was rectified by recalculating the prescaler strictly for the default 16MHz HSI.
+* **Prescaler Calibration:** An initial assumption of an 84MHz system clock led to an incorrect TIM2 prescaler calculation, resulting in a 625ms duty cycle instead of the required microsecond resolution. This was rectified by recalculating the prescaler strictly for the default 16MHz HSI.
+
+> <img width="1917" height="1001" alt="Screenshot 2026-03-30 161449" src="https://github.com/user-attachments/assets/3cb067ee-5b56-4916-a728-3476fbe189a7" />
+  
 * **Oscillator Drift Compensation:** When targeting a strict 10µs trigger pulse (`CCR1 = 10`), hardware verification revealed the HSI was running slightly faster than its nominal rating, shortening the physical pulse. To compensate for this silicon variance, the capture/compare register was actively tuned to `12U`, outputting a physical pulse of 11.875µs (accounting for the HSI running ~1% faster) to ensure the trigger remained safely above the required threshold.
 
 These timing constraints and clock drifts were physically verified and calibrated using an 8-Channel USB Logic Analyzer tapped directly into the transmission lines.
 
-> `[Insert Logic Analyzer Screenshot Here - Showing the 625ms error]`
+
+
 > 
-> `[Insert Logic Analyzer Screenshot Here - Showing the corrected 11.875µs trigger pulse at 12U]`
+> <img width="1919" height="955" alt="Screenshot 2026-04-05 144831" src="https://github.com/user-attachments/assets/c18572a8-697b-44dc-ac59-0dd60316c6a9" />
+
 ---
 
 ## Limitations & Future Improvements
