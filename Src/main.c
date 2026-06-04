@@ -28,6 +28,7 @@
 
 
 SemaphoreHandle_t EchoSemaphore;
+volatile UBaseType_t sensor_watermark;
 volatile uint32_t pulse_width = 0;
 volatile uint32_t filtered_distance = 0;
 
@@ -85,6 +86,8 @@ void vSensorTask(void *pvParameters){
 	uint32_t result = 0;
 
 	while(1){
+		sensor_watermark = uxTaskGetStackHighWaterMark(NULL);
+
 		Trig_Set(10);
 		if(xSemaphoreTake(EchoSemaphore, pdMS_TO_TICKS(50))== pdPASS){
 
@@ -133,6 +136,30 @@ void EXTI1_IRQHandler(void){
 			xSemaphoreGiveFromISR( EchoSemaphore, &xHigherPriorityTaskWoken);
 			portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 		}
+	}
+
+}
+
+void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName){
+
+	(void)xTask;
+	(void)pcTaskName;
+
+
+	GPIOA_MODER &= ~(3U << 10);
+	GPIOA_MODER |= (1U << 10);
+
+	TIM2_CR1 |= (1 << 0);
+
+	GPIOA_ODR &= ~(1 << 0);
+	while(1){
+		GPIOA_ODR ^= (1 << 5);
+
+		while(TIM2_CNT <= 1000000){
+			__asm("NOP"); // No Operation
+		}
+
+		TIM2_CNT = 0;
 	}
 
 }
