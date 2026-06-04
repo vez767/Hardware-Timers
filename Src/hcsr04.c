@@ -37,9 +37,9 @@ void HCSR04_Init(void){
 						/*TIM2 Config*/
 	RCC_APB1ENR |= (1U << 0);
 
-	TIM2_EGR |= (1 << 0);
 	TIM2_PSC = 15U;
 	TIM2_ARR = 0xFFFFFFFF;
+	TIM2_EGR |= (1 << 0);
 
 	TIM2_CR1 |= (1 << 0);
 }
