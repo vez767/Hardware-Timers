@@ -60,7 +60,7 @@ uint32_t distance_calc(uint32_t distance){
 
 
 	if(valid_samples == 8){
-		uint32_t avg_distance = (uint32_t)(distance_accumulator / 5);
+		uint32_t avg_distance = (uint32_t)(distance_accumulator / 8);
 
 		distance_accumulator = 0;
 		valid_samples = 0;
