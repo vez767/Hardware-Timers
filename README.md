@@ -23,6 +23,8 @@ By leveraging hardware timers, external interrupts (EXTI), and RTOS Semaphores, 
 ## RTOS Hardware-in-the-Loop (HIL) Demonstrations
 The following states detail how the RTOS pipeline behaves under physical testing, translating the original bare-metal state machine into asynchronous OS logic.
 
+> #### Please note, the window tracking limit was increased from 100cm to 200cm.
+
 ### Case 1: System Idle (No Target in Range)
 - **Status:** Nominal.
 - **Behavior:** The sensor fires, but the target is beyond the 200cm Application Gate. The DSP filter rejects the raw data and forcefully outputs the invalidation error code (`11111111`) to prevent downstream systems from acting on ghost data.
