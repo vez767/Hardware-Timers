@@ -23,7 +23,11 @@ By leveraging hardware timers, external interrupts (EXTI), and RTOS Semaphores, 
 ## RTOS Hardware-in-the-Loop (HIL) Demonstrations
 The following states detail how the RTOS pipeline behaves under physical testing, translating the original bare-metal state machine into asynchronous OS logic.
 
-> #### Please note, the window tracking limit was increased from 100cm to 200cm.
+
+
+
+
+> <video src="https://github.com/user-attachments/assets/453656e7-f788-434a-ab7f-08dbc2f3b5a8" width="600" controls></video>
 
 ### Case 1: System Idle (No Target in Range)
 - **Status:** Nominal.
@@ -44,6 +48,21 @@ The following states detail how the RTOS pipeline behaves under physical testing
 ### Case 5: Hardware Reconnection & Recovery
 - **Status:** System Restored.
 - **Behavior:** The severed wire is plugged back in. Because the `vSensorTask` is still looping and firing the trigger every 100ms, the very next cycle successfully catches the EXTI interrupt. The semaphore unlocks, and the system seamlessly resumes tracking without requiring a physical reset.
+
+### Case 6: Kernel Memory Crash (Stack Overflow Hook)
+- **Status:** Hardware Exception Triggered.
+- **Behavior:** The system's memory allocation was actively profiled using `uxTaskGetStackHighWaterMark()`. Under nominal conditions, the sensor task  maintains a safe margin of 88 words *(see attached screenshot)*. To physically validate the safety architecture, the memory allocation was intentionally starved to 28 words. The resulting hardware exception frame overflowed the stack boundary. The RTOS instantly bypassed scheduling, trapped the CPU, and executed the `TIM2` sequence to flash the `PA5` LED as a persistent visual alarm *(see attached video log)*
+
+<img width="724" height="37" alt="Screenshot 2026-08-11 194139" src="https://github.com/user-attachments/assets/366b218f-3395-4165-8543-11c15eeeb91d" />
+
+
+> <video src="https://github.com/user-attachments/assets/5ed952c8-b799-4aa4-b45e-c8925d4ff498" width="600" controls></video>
+
+
+
+
+
+
 
 ---
 
