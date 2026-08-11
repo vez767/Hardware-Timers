@@ -17,7 +17,7 @@
  */
 
 #include <stdint.h>
-
+#include <stdlib.h>
 #include "fpu_init.h"
 #include "hcsr04.h"
 #include "FreeRTOS.h"
@@ -25,21 +25,82 @@
 #include "semphr.h"
 
 
+
+
 SemaphoreHandle_t EchoSemaphore;
+volatile UBaseType_t sensor_watermark;
 volatile uint32_t pulse_width = 0;
 volatile uint32_t filtered_distance = 0;
 
 
+
+
+uint32_t distance_calc(uint32_t distance){
+
+
+	static int32_t last_contact = 0;
+	static uint8_t valid_samples = 0;
+	static uint8_t total_samples = 0;
+	static uint32_t distance_accumulator = 0;
+
+
+	total_samples++;
+
+				if(distance <= 200){   // 200cm - Window Limit
+						if(valid_samples == 0 || (abs(last_contact - distance)) < 50){
+
+					last_contact = distance;
+					distance_accumulator += distance;
+					valid_samples++;
+
+				}
+			}
+
+
+
+
+	if(valid_samples == 8){
+		uint32_t avg_distance = (uint32_t)(distance_accumulator / 8);
+
+		distance_accumulator = 0;
+		valid_samples = 0;
+		total_samples = 0;
+
+		return avg_distance;
+	}
+
+	if (total_samples >= 10){
+
+		distance_accumulator = 0;
+		valid_samples = 0;
+		total_samples = 0;
+
+		return 0xA98AC7;
+	}
+
+	return 0xFFFFFFFF;
+}
+
 void vSensorTask(void *pvParameters){
+	uint32_t raw_distance = 0;
+	uint32_t result = 0;
 
 	while(1){
+		sensor_watermark = uxTaskGetStackHighWaterMark(NULL);
+
 		Trig_Set(10);
 		if(xSemaphoreTake(EchoSemaphore, pdMS_TO_TICKS(50))== pdPASS){
-			filtered_distance = pulse_width / 58;
 
+			raw_distance = pulse_width / 58;
+			result = distance_calc(raw_distance);
+
+			if(result != 0xFFFFFFFF){
+			        filtered_distance = result;
+			    }
 		}else{
-			filtered_distance = 0xA98AC7;
+			filtered_distance = 0xA98AC7; // Hardware timeout
 		}
+
 					vTaskDelay(pdMS_TO_TICKS(100));
 
 	}
@@ -75,6 +136,30 @@ void EXTI1_IRQHandler(void){
 			xSemaphoreGiveFromISR( EchoSemaphore, &xHigherPriorityTaskWoken);
 			portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 		}
+	}
+
+}
+
+void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName){
+
+	(void)xTask;
+	(void)pcTaskName;
+
+
+	GPIOA_MODER &= ~(3U << 10);
+	GPIOA_MODER |= (1U << 10);
+
+	TIM2_CR1 |= (1 << 0);
+
+	GPIOA_ODR &= ~(1 << 0);
+	while(1){
+		GPIOA_ODR ^= (1 << 5);
+
+		while(TIM2_CNT <= 1000000){
+			__asm("NOP"); // No Operation
+		}
+
+		TIM2_CNT = 0;
 	}
 
 }
