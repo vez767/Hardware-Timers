@@ -6,7 +6,17 @@
  */
 
 #include <stdint.h>
+#include <stdlib.h>
 #include "hcsr04.h"
+#include "FreeRTOS.h"
+#include "task.h"
+#include "semphr.h"
+#include "iwdg.h"
+
+extern SemaphoreHandle_t EchoSemaphore;
+extern volatile uint32_t pulse_width;
+volatile UBaseType_t sensor_watermark;
+volatile uint32_t filtered_distance = 0;
 
 void HCSR04_Init(void){
 						/*GPIO Config*/
@@ -44,6 +54,7 @@ void HCSR04_Init(void){
 	TIM2_CR1 |= (1 << 0);
 }
 
+
 void Trig_Set(uint8_t set_time_us){
 
 	GPIOA_ODR |= (1U << 0);
@@ -57,4 +68,85 @@ void Trig_Set(uint8_t set_time_us){
 
 }
 
+
+
+uint32_t distance_calc(uint32_t distance){
+
+
+	static int32_t last_contact = 0;
+	static uint8_t valid_samples = 0;
+	static uint8_t total_samples = 0;
+	static uint32_t distance_accumulator = 0;
+
+
+	total_samples++;
+
+				if(distance <= 200){   // 200cm - Window Limit
+						if(valid_samples == 0 || (abs(last_contact - distance)) < 50){
+
+					last_contact = distance;
+					distance_accumulator += distance;
+					valid_samples++;
+
+				}
+			}
+
+
+
+
+	if(valid_samples == 8){
+		uint32_t avg_distance = (uint32_t)(distance_accumulator / 8);
+
+		distance_accumulator = 0;
+		valid_samples = 0;
+		total_samples = 0;
+
+		return avg_distance;
+	}
+
+	if (total_samples >= 10){
+
+		distance_accumulator = 0;
+		valid_samples = 0;
+		total_samples = 0;
+
+		return 999;
+	}
+
+	return 0xFFFFFFFF;
+}
+
+
+
+void vSensorTask(void *pvParameters){
+	uint32_t raw_distance = 0;
+	uint32_t result = 0;
+
+	while(1){
+		sensor_watermark = uxTaskGetStackHighWaterMark(NULL);
+
+		Trig_Set(10);
+		if(xSemaphoreTake(EchoSemaphore, pdMS_TO_TICKS(50))== pdPASS){
+
+			raw_distance = pulse_width / 58;
+			result = distance_calc(raw_distance);
+
+			if(result != 0xFFFFFFFF){
+			        filtered_distance = result;
+			    }
+		}else{
+			filtered_distance = 0xA98AC7; // Hardware timeout
+		}
+
+
+				IWDG_Feed();
+
+					vTaskDelay(pdMS_TO_TICKS(100));
+
+	}
+}
+
+void SensorTask_Init(void){
+	 xTaskCreate(vSensorTask, "Sensor", 128, NULL, 1, NULL);
+}
 
