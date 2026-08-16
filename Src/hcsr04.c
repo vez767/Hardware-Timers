@@ -7,20 +7,28 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+
 #include "hcsr04.h"
+#include "iwdg.h"
+#include "telemetry.h"
+
 #include "FreeRTOS.h"
 #include "task.h"
 #include "semphr.h"
-#include "iwdg.h"
 #include "event_groups.h"
+#include "queue.h"
+
+
+
 
 #define SENSOR_TASK_BIT (1 << 0)
 
-extern SemaphoreHandle_t EchoSemaphore;
-extern volatile uint32_t pulse_width;
 extern EventGroupHandle_t IWDG_eventgroup;
 volatile UBaseType_t sensor_watermark;
-volatile uint32_t filtered_distance = 0;
+extern QueueHandle_t Distance_Data_Queue;
+extern QueueHandle_t Sensor_Payload_Queue;
+
+volatile SensorData_t debug_telemetry;
 
 void HCSR04_Init(void){
 						/*GPIO Config*/
@@ -74,7 +82,7 @@ void Trig_Set(uint8_t set_time_us){
 
 
 
-uint32_t distance_calc(uint32_t distance){
+uint32_t calc_distance(uint32_t distance){
 
 
 	static int32_t last_contact = 0;
@@ -125,32 +133,49 @@ uint32_t distance_calc(uint32_t distance){
 void vSensorTask(void *pvParameters){
 	uint32_t raw_distance = 0;
 	uint32_t result = 0;
+	uint32_t received_pulse_width;
 
+	SensorData_t sensor_payload;
 	while(1){
 		sensor_watermark = uxTaskGetStackHighWaterMark(NULL);
 
 		Trig_Set(10);
-		if(xSemaphoreTake(EchoSemaphore, pdMS_TO_TICKS(50))== pdPASS){
+		if(xQueueReceive(Distance_Data_Queue, &received_pulse_width, pdMS_TO_TICKS(50))== pdPASS){
 
-			raw_distance = pulse_width / 58;
-			result = distance_calc(raw_distance);
+			raw_distance = received_pulse_width / 58;
+			result = calc_distance(raw_distance);
 
 			if(result != 0xFFFFFFFF){
-			        filtered_distance = result;
-			    }
-		}else{
-			filtered_distance = 0xA98AC7; // Hardware timeout
-		}
+				if(result == 999){
+				sensor_payload.distance = 999;
+				sensor_payload.status = 1; // 1 = Clean Envelope
 
+				}else{
+			    	sensor_payload.distance = result;
+			    	sensor_payload.status = 0; // Object Detected
+				}
+
+				xQueueSend(Sensor_Payload_Queue, &sensor_payload, 0);
+				debug_telemetry = sensor_payload;
+			}
+
+		}else{
+			sensor_payload.distance = 0xA98AC7;
+			sensor_payload.status = 2; // Hardware timeout
+
+			xQueueSend(Sensor_Payload_Queue, &sensor_payload, 0);
+			debug_telemetry = sensor_payload;
+			}
 
 	/*	// --- THE CRASH TRAP (Must be here for the test!) ---
-				if(filtered_distance == 0xA98AC7){
+				if(sensor_payload.status == 2){
 					// If the wire is pulled, freeze the task.
 					// The Watchdog Task starves  and the STM32 resets.
 					while(1){
 						// Trapped!
 					}
 				}												*/
+
 
 				xEventGroupSetBits(IWDG_eventgroup, SENSOR_TASK_BIT);
 					vTaskDelay(pdMS_TO_TICKS(100));
@@ -161,4 +186,3 @@ void vSensorTask(void *pvParameters){
 void SensorTask_Init(void){
 	 xTaskCreate(vSensorTask, "Sensor", 128, NULL, 1, NULL);
 }
-

@@ -5,8 +5,10 @@
  *      Author: Windows
  */
 
-#include "iwdg.h"
 #include "stm32f4xx.h"
+
+#include "iwdg.h"
+
 #include "FreeRTOS.h"
 #include "event_groups.h"
 

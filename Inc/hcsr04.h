@@ -48,7 +48,7 @@
 void HCSR04_Init(void);
 void Trig_Set(uint8_t set_time_us);
 
-uint32_t distance_calc(uint32_t distance);
+uint32_t calc_distance(uint32_t distance);
 void vSensorTask(void *pvParameters);
 void SensorTask_Init(void);
 

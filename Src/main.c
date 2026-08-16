@@ -16,32 +16,38 @@
  ******************************************************************************
  */
 
+#include "stm32f4xx.h"
+
 #include <stdint.h>
+
 #include "fpu_init.h"
 #include "hcsr04.h"
+#include "iwdg.h"
+#include "telemetry.h"
+
 #include "FreeRTOS.h"
 #include "task.h"
 #include "semphr.h"
-#include "iwdg.h"
 #include "event_groups.h"
-#include "stm32f4xx.h"
+#include "queue.h"
 
-volatile uint32_t pulse_width;
 
 #define SENSOR_TASK_BIT (1 << 0)
 
-SemaphoreHandle_t EchoSemaphore;
 EventGroupHandle_t IWDG_eventgroup;
+QueueHandle_t Distance_Data_Queue;
+QueueHandle_t  Sensor_Payload_Queue;
 
 int main(void){
 	FPU_Init();
 	HCSR04_Init();
 	IWDG_Init();
 
-	EchoSemaphore = xSemaphoreCreateBinary();
 	IWDG_eventgroup = xEventGroupCreate();
+	Distance_Data_Queue = xQueueCreate(5, sizeof(uint32_t));
+	Sensor_Payload_Queue = xQueueCreate(5, sizeof(SensorData_t));
 
-	if(EchoSemaphore != NULL && IWDG_eventgroup != NULL){
+	if(IWDG_eventgroup != NULL && Distance_Data_Queue != NULL && Sensor_Payload_Queue != NULL){
 		SensorTask_Init();
 		WatchDogTask_Init();
 	    }
@@ -60,10 +66,10 @@ void EXTI1_IRQHandler(void){
 			TIM2_CNT = 0;
 		}
 		else{
-			pulse_width = TIM2_CNT;
+			uint32_t pulse_width = TIM2_CNT;
 
 			BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-			xSemaphoreGiveFromISR( EchoSemaphore, &xHigherPriorityTaskWoken);
+			xQueueSendFromISR(Distance_Data_Queue, &pulse_width , &xHigherPriorityTaskWoken);
 			portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 		}
 	}
