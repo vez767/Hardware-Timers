@@ -12,9 +12,13 @@
 #include "task.h"
 #include "semphr.h"
 #include "iwdg.h"
+#include "event_groups.h"
+
+#define SENSOR_TASK_BIT (1 << 0)
 
 extern SemaphoreHandle_t EchoSemaphore;
 extern volatile uint32_t pulse_width;
+extern EventGroupHandle_t IWDG_eventgroup;
 volatile UBaseType_t sensor_watermark;
 volatile uint32_t filtered_distance = 0;
 
@@ -139,8 +143,16 @@ void vSensorTask(void *pvParameters){
 		}
 
 
-				IWDG_Feed();
+	/*	// --- THE CRASH TRAP (Must be here for the test!) ---
+				if(filtered_distance == 0xA98AC7){
+					// If the wire is pulled, freeze the task.
+					// The Watchdog Task starves  and the STM32 resets.
+					while(1){
+						// Trapped!
+					}
+				}												*/
 
+				xEventGroupSetBits(IWDG_eventgroup, SENSOR_TASK_BIT);
 					vTaskDelay(pdMS_TO_TICKS(100));
 
 	}

@@ -13,4 +13,7 @@
 void IWDG_Init(void);
 void IWDG_Feed(void);
 
+void vWatchDogTask(void *pvParameters);
+void WatchDogTask_Init(void);
+
 #endif /* IWDG_H_ */

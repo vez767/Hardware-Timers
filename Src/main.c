@@ -23,13 +23,15 @@
 #include "task.h"
 #include "semphr.h"
 #include "iwdg.h"
-
+#include "event_groups.h"
 #include "stm32f4xx.h"
 
 volatile uint32_t pulse_width;
 
-SemaphoreHandle_t EchoSemaphore;
+#define SENSOR_TASK_BIT (1 << 0)
 
+SemaphoreHandle_t EchoSemaphore;
+EventGroupHandle_t IWDG_eventgroup;
 
 int main(void){
 	FPU_Init();
@@ -37,9 +39,11 @@ int main(void){
 	IWDG_Init();
 
 	EchoSemaphore = xSemaphoreCreateBinary();
+	IWDG_eventgroup = xEventGroupCreate();
 
-	if(EchoSemaphore != NULL){
+	if(EchoSemaphore != NULL && IWDG_eventgroup != NULL){
 		SensorTask_Init();
+		WatchDogTask_Init();
 	    }
 
 	    vTaskStartScheduler();
