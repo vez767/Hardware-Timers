@@ -44,9 +44,12 @@
 #define TIM2_ARR		(*(volatile uint32_t *)(TIM2_BASE + 0x2C))
 #define TIM2_CR1		(*(volatile uint32_t *)(TIM2_BASE + 0x00))
 
+
 void HCSR04_Init(void);
 void Trig_Set(uint8_t set_time_us);
 
-
+uint32_t calc_distance(uint32_t distance);
+void vSensorTask(void *pvParameters);
+void SensorTask_Init(void);
 
 #endif /* HCSR04_H_ */

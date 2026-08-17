@@ -16,104 +16,40 @@
  ******************************************************************************
  */
 
+#include "stm32f4xx.h"
+
 #include <stdint.h>
-#include <stdlib.h>
+
 #include "fpu_init.h"
 #include "hcsr04.h"
+#include "iwdg.h"
+#include "telemetry.h"
+
 #include "FreeRTOS.h"
 #include "task.h"
 #include "semphr.h"
+#include "event_groups.h"
+#include "queue.h"
 
 
+#define SENSOR_TASK_BIT (1 << 0)
 
-
-SemaphoreHandle_t EchoSemaphore;
-volatile UBaseType_t sensor_watermark;
-volatile uint32_t pulse_width = 0;
-volatile uint32_t filtered_distance = 0;
-
-
-
-
-uint32_t distance_calc(uint32_t distance){
-
-
-	static int32_t last_contact = 0;
-	static uint8_t valid_samples = 0;
-	static uint8_t total_samples = 0;
-	static uint32_t distance_accumulator = 0;
-
-
-	total_samples++;
-
-				if(distance <= 200){   // 200cm - Window Limit
-						if(valid_samples == 0 || (abs(last_contact - distance)) < 50){
-
-					last_contact = distance;
-					distance_accumulator += distance;
-					valid_samples++;
-
-				}
-			}
-
-
-
-
-	if(valid_samples == 8){
-		uint32_t avg_distance = (uint32_t)(distance_accumulator / 8);
-
-		distance_accumulator = 0;
-		valid_samples = 0;
-		total_samples = 0;
-
-		return avg_distance;
-	}
-
-	if (total_samples >= 10){
-
-		distance_accumulator = 0;
-		valid_samples = 0;
-		total_samples = 0;
-
-		return 0xA98AC7;
-	}
-
-	return 0xFFFFFFFF;
-}
-
-void vSensorTask(void *pvParameters){
-	uint32_t raw_distance = 0;
-	uint32_t result = 0;
-
-	while(1){
-		sensor_watermark = uxTaskGetStackHighWaterMark(NULL);
-
-		Trig_Set(10);
-		if(xSemaphoreTake(EchoSemaphore, pdMS_TO_TICKS(50))== pdPASS){
-
-			raw_distance = pulse_width / 58;
-			result = distance_calc(raw_distance);
-
-			if(result != 0xFFFFFFFF){
-			        filtered_distance = result;
-			    }
-		}else{
-			filtered_distance = 0xA98AC7; // Hardware timeout
-		}
-
-					vTaskDelay(pdMS_TO_TICKS(100));
-
-	}
-}
+EventGroupHandle_t IWDG_eventgroup;
+QueueHandle_t Distance_Data_Queue;
+QueueHandle_t  Sensor_Payload_Queue;
 
 int main(void){
 	FPU_Init();
 	HCSR04_Init();
+	IWDG_Init();
 
-	EchoSemaphore = xSemaphoreCreateBinary();
+	IWDG_eventgroup = xEventGroupCreate();
+	Distance_Data_Queue = xQueueCreate(5, sizeof(uint32_t));
+	Sensor_Payload_Queue = xQueueCreate(5, sizeof(SensorData_t));
 
-	if(EchoSemaphore != NULL){
-	        xTaskCreate(vSensorTask, "Sensor", 128, NULL, 1, NULL);
+	if(IWDG_eventgroup != NULL && Distance_Data_Queue != NULL && Sensor_Payload_Queue != NULL){
+		SensorTask_Init();
+		WatchDogTask_Init();
 	    }
 
 	    vTaskStartScheduler();
@@ -130,10 +66,10 @@ void EXTI1_IRQHandler(void){
 			TIM2_CNT = 0;
 		}
 		else{
-			pulse_width = TIM2_CNT;
+			uint32_t pulse_width = TIM2_CNT;
 
 			BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-			xSemaphoreGiveFromISR( EchoSemaphore, &xHigherPriorityTaskWoken);
+			xQueueSendFromISR(Distance_Data_Queue, &pulse_width , &xHigherPriorityTaskWoken);
 			portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 		}
 	}
