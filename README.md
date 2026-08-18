@@ -1,5 +1,4 @@
 
-https://github.com/user-attachments/assets/d7af9c61-6ff2-407c-8e48-ad446c88de1e
 # HC-SR04 FreeRTOS Driver & IPC Telemetry Engine (v1.3.0)
 
 ## System Overview
@@ -52,7 +51,7 @@ The telemetry pipeline outputs a strict status code hierarchy: Status `0` (Objec
 
 > **Video 3: Task Freeze & IWDG Reset**
 > *(Demonstrates the system booting, triggering an intentional crash trap upon wire pull, followed by the Watchdog forcing a hard reset.)*
-> <video src="Uploading HIL Verification - IWDG.mp4…" width="600" controls></video>
+> <video src="https://github.com/user-attachments/assets/d7af9c61-6ff2-407c-8e48-ad446c88de1e" width="600" controls></video>
 
 ### Case 5: Task Freeze (IWDG Hardware Reset)
 - **Status:** Watchdog Hard Fault.
