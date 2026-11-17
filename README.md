@@ -26,8 +26,12 @@ The system migrates from CPU-blocked flight time calculations to an autonomous I
 The telemetry pipeline outputs a strict status code hierarchy: Status `0` (Object Detected), Status `1` (Clean Envelope / Noise Filtered), and Status `2` (Hardware Fault). The following states detail how the IPC pipeline behaves under physical testing.
 
 > **Video 1: Live Telemetry & Safe States**
-> *(Demonstrates the driver outputting clean distances, switching to Status 1 (`999`) on a clean envelope , and jumping to Status 2 (`11111111`) on physical disconnect.)*
-> <video src="https://github.com/user-attachments/assets/7c05b142-9009-4b6b-ab9d-eb1672df2911" width="600" controls></video>
+> (Demonstrates the driver outputting clean distances, switching to Status 1 (`999`) on a clean envelope , and jumping to Status 2 (`11111111`) on physical disconnect.)
+
+
+
+
+https://github.com/user-attachments/assets/7c05b142-9009-4b6b-ab9d-eb1672df2911
 
 ### Case 1: System Idle / Clean Envelope
 - **Status:** Nominal (Status `1`).
@@ -42,16 +46,17 @@ The telemetry pipeline outputs a strict status code hierarchy: Status `0` (Objec
 - **Behavior:** The physical ECHO wire is disconnected during operation. The EXTI interrupt never fires. Instead of trapping the CPU, the `xQueueReceive` hits its strict 50ms block time. The task wakes up, logs the `0xA98AC7` (`11111111`) hexadecimal fault code, and pushes Status `2` to the system bus. The rest of the MCU continues running perfectly.
 
 > **Video 2: Hardware Reconnection & Non-Blocking Proof**
-> *(Demonstrates the system surviving a severe connection loss—such as severing and restoring the ground pin—without hanging, proving the RTOS architecture remains unblocked.)*
-> <video src="https://github.com/user-attachments/assets/fd28b106-dec5-4d1d-aef6-468fa08c885a" width="600" controls></video>
+> (Demonstrates the system surviving a severe connection loss—such as severing and restoring the ground pin—without hanging, proving the RTOS architecture remains unblocked.)
 
+ https://github.com/user-attachments/assets/fd28b106-dec5-4d1d-aef6-468fa08c885a
 ### Case 4: Hardware Reconnection & Recovery
 - **Status:** System Restored.
 - **Behavior:** The severed connection is restored. Because the `vSensorTask` is still looping and firing the trigger every 100ms, the very next cycle successfully catches the EXTI interrupt. The queue receives the pulse, and the system seamlessly resumes tracking without requiring a physical reset.
 
 > **Video 3: Task Freeze & IWDG Reset**
 > *(Demonstrates the system booting, triggering an intentional crash trap upon wire pull, followed by the Watchdog forcing a hard reset.)*
-> <video src="https://github.com/user-attachments/assets/d7af9c61-6ff2-407c-8e48-ad446c88de1e" width="600" controls></video>
+
+ https://github.com/user-attachments/assets/d7af9c61-6ff2-407c-8e48-ad446c88de1e
 
 ### Case 5: Task Freeze (IWDG Hardware Reset)
 - **Status:** Watchdog Hard Fault.
@@ -64,7 +69,7 @@ The telemetry pipeline outputs a strict status code hierarchy: Status `0` (Objec
 
 <img width="727" height="77" alt="Screenshot 2026-08-16 160133" src="https://github.com/user-attachments/assets/ebdd3c3c-d684-4b6d-95ca-589f75dfb8fd" />
 
-> <video src="https://github.com/user-attachments/assets/5ed952c8-b799-4aa4-b45e-c8925d4ff498" width="600" controls></video>
+https://github.com/user-attachments/assets/5ed952c8-b799-4aa4-b45e-c8925d4ff498
 
 ---
 
